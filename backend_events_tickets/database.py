@@ -1,4 +1,5 @@
 import enum
+from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import (
@@ -19,7 +20,9 @@ from sqlalchemy.orm import (
     relationship,
 )
 
-DATABASE_URL = "sqlite:///./tickets_app.db"
+# Caminho absoluto até o banco, independente de onde o comando é executado
+BASE_DIR = Path(__file__).resolve().parent
+DATABASE_URL = f"sqlite:///{BASE_DIR / 'tickets_app.db'}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
