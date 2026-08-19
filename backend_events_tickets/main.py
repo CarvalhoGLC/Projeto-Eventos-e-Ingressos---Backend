@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend_events_tickets.database import Base, engine, User
@@ -22,8 +23,14 @@ app.include_router(gate.router)
 def register(data: UserRegister, db: Session = Depends(get_db)):
     hashed = pwd_context.hash(data.password)
     user = User(email=data.email, hashed_password=hashed, role=data.role)
-    db.add(user)
-    db.commit()
+
+    try:
+        db.add(user)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Este e-mail já está cadastrado.")
+
     return {"message": "Usuário criado com sucesso"}
 
 
