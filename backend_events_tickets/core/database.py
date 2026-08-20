@@ -1,4 +1,5 @@
 import enum
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -20,11 +21,21 @@ from sqlalchemy.orm import (
     relationship,
 )
 
-# Caminho absoluto até o banco, independente de onde o comando é executado
-BASE_DIR = Path(__file__).resolve().parent
-DATABASE_URL = f"sqlite:///{BASE_DIR / 'tickets_app.db'}"
+# Caminho absoluto até o banco local. Sobe dois níveis (core/ -> backend_events_tickets/)
+# para que o tickets_app.db continue no mesmo lugar de sempre.
+BASE_DIR = Path(__file__).resolve().parent.parent  # core/ -> backend_events_tickets/
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Em ambientes serverless (Vercel, por exemplo) não existe disco persistente,
+# então SQLite não funciona em produção. Se a variável DATABASE_URL estiver
+# definida (ex.: uma connection string do Postgres), ela tem prioridade;
+# sem ela, continua usando o tickets_app.db local — sem exigir nada extra
+# para quem está rodando o projeto na própria máquina.
+DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{BASE_DIR / 'tickets_app.db'}"
+
+# `check_same_thread` só existe/faz sentido para SQLite.
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

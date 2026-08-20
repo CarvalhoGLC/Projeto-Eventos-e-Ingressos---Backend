@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Persiste o tickets_app.db fora do container, entre rebuilds.
+      # Crie o arquivo vazio antes do primeiro `docker compose up`:
+      #   mkdir -p data && touch data/tickets_app.db
+      - ./data/tickets_app.db:/app/backend_events_tickets/tickets_app.db

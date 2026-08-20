@@ -4,7 +4,7 @@ import uuid
 
 import httpx
 
-from backend_events_tickets.config import get_settings
+from backend_events_tickets.core.config import get_settings
 
 settings = get_settings()
 

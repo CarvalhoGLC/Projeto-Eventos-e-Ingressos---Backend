@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend_events_tickets.database import Ticket, User, UserRole
-from backend_events_tickets.auth import get_db, require_role
+from backend_events_tickets.core.database import Ticket, User, UserRole
+from backend_events_tickets.core.auth import get_db, require_role, get_current_user
 from backend_events_tickets.schemas import BookingRequest
 from backend_events_tickets.services import generate_signed_qr_payload, generate_share_token
 
 router = APIRouter(tags=["Reservas e Ingressos"])
+
+
+# --------------------- MEUS INGRESSOS ---------------------
+@router.get("/bookings/me")
+def list_my_tickets(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return db.query(Ticket).filter(Ticket.user_id == user.id).all()
 
 
 # --------------------- RESERVA E PAGAMENTO (CLIENTE) ---------------------

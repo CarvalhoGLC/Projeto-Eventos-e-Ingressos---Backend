@@ -1,11 +1,24 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend_events_tickets.database import Event, User, UserRole
-from backend_events_tickets.auth import get_db, require_role
+from backend_events_tickets.core.database import Event, User, UserRole
+from backend_events_tickets.core.auth import get_db, require_role
 from backend_events_tickets.schemas import EventCreate
 
 router = APIRouter(prefix="/events", tags=["Eventos"])
+
+
+@router.get("")
+def list_events(db: Session = Depends(get_db)):
+    return db.query(Event).all()
+
+
+@router.get("/{event_id}")
+def get_event(event_id: int, db: Session = Depends(get_db)):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Evento não encontrado.")
+    return event
 
 
 @router.post("")

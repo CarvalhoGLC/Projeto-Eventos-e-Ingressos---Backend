@@ -17,9 +17,12 @@ via **JWT** e três papéis de usuário distintos: Organizador, Cliente e Portar
 - [Instalação](#instalação)
 - [Configuração (.env)](#configuração-env)
 - [Rodando o projeto](#rodando-o-projeto)
+- [Dados de teste (seed)](#dados-de-teste-seed)
 - [Testando via Swagger](#testando-via-swagger)
 - [Rotas da API](#rotas-da-api)
 - [Rodando os testes automatizados](#rodando-os-testes-automatizados)
+- [Rodando com Docker](#rodando-com-docker)
+- [Problemas comuns](#problemas-comuns)
 - [Notas técnicas e decisões de projeto](#notas-técnicas-e-decisões-de-projeto)
 
 ---
@@ -63,28 +66,35 @@ via **JWT** e três papéis de usuário distintos: Organizador, Cliente e Portar
 
 ```
 backend/
+├── Dockerfile               # imagem de produção (uvicorn, usuário não-root)
+├── .dockerignore              # exclui .env, venv, testes etc. da imagem
+├── docker-compose.yml           # atalho para build + run com .env e volume
+├── requirements.txt                # dependências de produção
+├── requirements-dev.txt              # requirements.txt + pytest
 └── backend_events_tickets/
-    ├── main.py              # cria a app, registra rotas de auth e os routers
-    ├── config.py             # configurações (lê o .env via pydantic-settings)
-    ├── database.py             # models SQLAlchemy (User, Event, Ticket) e engine
-    ├── schemas.py                # schemas Pydantic (UserRegister, EventCreate, BookingRequest)
-    ├── auth.py                     # JWT, hash de senha, get_current_user, require_role
-    ├── services.py                   # busca TMDb, geração/validação do QR Code assinado
+    ├── main.py              # cria a app, registra rotas de auth, /me e os routers
+    ├── seed.py                # popula organizador, clientes, portaria e um evento de teste
+    ├── core/
+    │   ├── config.py             # configurações (lê o .env via pydantic-settings)
+    │   ├── database.py             # models SQLAlchemy (User, Event, Ticket) e engine
+    │   └── auth.py                  # JWT, hash de senha, get_current_user, require_role
+    ├── schemas.py                     # schemas Pydantic (UserRegister, EventCreate, BookingRequest)
+    ├── services.py                       # busca TMDb, geração/validação do QR Code assinado
     ├── routers/
-    │   ├── events.py                   # POST /events
-    │   ├── bookings.py                   # POST /bookings, GET /tickets/share/{token}
-    │   ├── external.py                     # GET /external/movies
-    │   └── gate.py                           # POST /gate/validate
+    │   ├── events.py                        # POST /events
+    │   ├── bookings.py                        # POST /bookings, GET /tickets/share/{token}
+    │   ├── external.py                          # GET /external/movies
+    │   └── gate.py                                # POST /gate/validate
     ├── tests/
-    │   ├── conftest.py                         # fixtures: client de teste, banco isolado, login
-    │   ├── test_auth.py                          # registro e login
-    │   ├── test_events.py                          # criação de evento e permissões
-    │   ├── test_bookings.py                          # reserva, assento duplicado, link
-    │   ├── test_gate.py                                # validação, QR forjado, dupla validação
-    │   └── test_external.py                             # busca TMDb (mockada)
-    ├── .env                                                # variáveis reais (não versionado)
-    ├── .env.example                                          # modelo do .env, seguro para versionar
-    └── tickets_app.db                                          # banco SQLite (gerado automaticamente)
+    │   ├── conftest.py                              # fixtures: client de teste, banco isolado, login
+    │   ├── test_auth.py                               # registro, login e /me
+    │   ├── test_events.py                               # criação de evento e permissões
+    │   ├── test_bookings.py                               # reserva, assento duplicado, link
+    │   ├── test_gate.py                                     # validação, QR forjado, dupla validação
+    │   └── test_external.py                                   # busca TMDb (mockada)
+    ├── .env                                                      # variáveis reais (não versionado)
+    ├── .env.example                                                # modelo do .env, seguro para versionar
+    └── tickets_app.db                                                # banco SQLite (gerado automaticamente)
 ```
 
 ---
@@ -126,7 +136,7 @@ pip install fastapi "uvicorn[standard]" sqlalchemy pydantic-settings \
 ## Configuração (.env)
 
 Crie um arquivo `.env` dentro de `backend_events_tickets/` (ao lado do
-`config.py`), baseado no `.env.example`:
+`core/config.py`), baseado no `.env.example`:
 
 ```env
 SECRET_KEY=
@@ -155,8 +165,8 @@ python -c "import secrets; print(secrets.token_hex(32))"
 > silenciosamente com valores inválidos.
 
 O caminho do `.env` e do banco `tickets_app.db` são resolvidos de forma
-**absoluta**, com base na localização dos arquivos `config.py` e
-`database.py` — então funciona independente de qual pasta você está quando
+**absoluta**, com base na localização dos arquivos `core/config.py` e
+`core/database.py` — então funciona independente de qual pasta você está quando
 roda o comando.
 
 ---
@@ -174,6 +184,33 @@ automaticamente na primeira execução.
 
 ---
 
+## Dados de teste (seed)
+
+Para não precisar cadastrar organizador, clientes e evento na mão toda vez,
+o projeto inclui um script de seed. **Rode com o servidor parado**, de
+dentro da pasta `backend` (mesma pasta do comando anterior):
+
+```bash
+python -m backend_events_tickets.seed
+```
+
+É seguro rodar mais de uma vez — ele verifica o que já existe antes de
+criar, então não duplica nada. Ao final, ele imprime no terminal as
+credenciais e os IDs gerados. Resumo do que fica populado:
+
+| Papel | E-mail | Senha | Observação |
+|---|---|---|---|
+| Organizador | `organizador@example.com` | `senha123` | dono do evento semeado |
+| Cliente 1 | `cliente1@example.com` | `senha123` | já possui o assento `A1` reservado |
+| Cliente 2 | `cliente2@example.com` | `senha123` | sem ingresso ainda — pode reservar |
+| Portaria | `portaria@example.com` | `senha123` | — |
+
+Mais um evento: **"Show de Lançamento"**, com o assento `A1` já vendido
+para o Cliente 1 (ingresso com QR Code assinado e link compartilhável
+prontos) e os demais assentos livres para testar uma nova reserva.
+
+---
+
 ## Testando via Swagger
 
 Acesse a documentação interativa em:
@@ -182,23 +219,24 @@ Acesse a documentação interativa em:
 http://127.0.0.1:8000/docs
 ```
 
-### Roteiro de teste manual
+### Roteiro de teste manual (usando os dados semeados)
 
-1. **`POST /register`** — crie um usuário organizador:
-   ```json
-   {"email": "organizador@exemplo.com", "password": "senha123", "role": "organizer"}
-   ```
-2. **Clique em "Authorize"** (cadeado no topo da página) → informe o
-   `username` (email) e `password` cadastrados → **Authorize**. O Swagger
-   faz login e usa o token automaticamente nas próximas chamadas.
-3. **`POST /events`** — crie um evento (autenticado como organizador).
-4. Registre um segundo usuário com `role: "client"`, reautorize com ele, e
-   use **`POST /bookings`** para reservar um assento no evento criado.
+1. **Rode o seed** (seção anterior), se ainda não rodou.
+2. **Clique em "Authorize"** (cadeado no topo da página) → use
+   `organizador@example.com` / `senha123` → **Authorize**.
+3. **`POST /events`** — crie um novo evento (autenticado como organizador),
+   ou use o evento já semeado ("Show de Lançamento") anotando o `id` que o
+   script imprimiu.
+4. Reautorize com `cliente2@example.com` / `senha123`, e use
+   **`POST /bookings`** para reservar um assento livre (`B1`, por exemplo)
+   no evento.
 5. A resposta traz `qr_code_payload` e `share_link`. Teste
    **`GET /tickets/share/{token}`** com o token do link.
-6. Registre um terceiro usuário com `role: "gate"`, reautorize, e use
-   **`POST /gate/validate`** com o `qr_code_payload` e o `event_id` para
-   liberar a entrada. Chamando de novo com o mesmo QR Code retorna `USED`.
+6. Reautorize com `portaria@example.com` / `senha123`, e use
+   **`POST /gate/validate`** com o `qr_code_payload` e o `event_id` — tanto
+   com o ingresso que você acabou de reservar quanto com o do Cliente 1
+   (impresso pelo script de seed) — para liberar a entrada. Chamando de
+   novo com o mesmo QR Code retorna `USED`.
 
 ---
 
@@ -208,6 +246,7 @@ http://127.0.0.1:8000/docs
 |---|---|---|---|
 | `POST` | `/register` | — | Cria um novo usuário |
 | `POST` | `/token` | — | Login (OAuth2 Password Flow); retorna o JWT |
+| `GET` | `/me` | qualquer autenticado | Retorna os dados do usuário logado (id, email, papel) |
 | `GET` | `/external/movies?query=...` | — | Busca filmes no TMDb |
 | `POST` | `/events` | `organizer` | Cria um evento |
 | `POST` | `/bookings` | `client` | Reserva um assento e gera o ingresso com QR Code |
@@ -240,6 +279,126 @@ Cobertura da suíte:
 - Rejeição de QR Code adulterado (assinatura inválida)
 - Rejeição de ingresso usado no evento errado
 - Restrição de acesso à portaria por papel
+
+---
+
+## Rodando com Docker
+
+Como alternativa a instalar Python e as dependências localmente, o projeto
+inclui um `Dockerfile`, `.dockerignore`, `docker-compose.yml` e
+`requirements.txt` / `requirements-dev.txt` na raiz de `backend/`.
+
+```
+backend/
+├── Dockerfile
+├── .dockerignore
+├── docker-compose.yml
+├── requirements.txt
+├── requirements-dev.txt
+├── .env
+└── backend_events_tickets/
+```
+
+### Opção 1 — Docker puro
+
+```bash
+docker build -t bilheteria-api .
+docker run -p 8000:8000 --env-file backend_events_tickets/.env bilheteria-api
+```
+
+### Opção 2 — Docker Compose (recomendado)
+
+Persiste o banco SQLite fora do container, entre rebuilds:
+
+```bash
+mkdir -p data && touch data/tickets_app.db
+docker compose up --build
+```
+
+> O `docker-compose.yml` espera o `.env` na raiz de `backend/`. Se o seu
+> `.env` está dentro de `backend_events_tickets/`, copie-o também para a
+> raiz, ou ajuste o campo `env_file:` no `docker-compose.yml`.
+
+Em ambos os casos, a API sobe em `http://localhost:8000` e o Swagger em
+`http://localhost:8000/docs`, exatamente como no modo local.
+
+### Decisões do Dockerfile
+
+- Roda com **`uvicorn` diretamente** em produção — o `fastapi dev` é só
+  para desenvolvimento local, com reload automático.
+- Usa um **usuário não-root** (`appuser`) dentro do container, por boa
+  prática de segurança.
+- **Nenhum segredo vai para dentro da imagem**: o `.env` é ignorado no
+  build (via `.dockerignore`) e injetado apenas em tempo de execução, com
+  `--env-file` (Docker puro) ou `env_file:` (Compose).
+- `bcrypt==4.0.1` continua fixado no `requirements.txt`, pelo mesmo motivo
+  de compatibilidade com o `passlib` já explicado na instalação local.
+
+### Rodando os testes dentro do container
+
+O `requirements-dev.txt` não é instalado na imagem de produção. Para rodar a
+suíte de testes dentro do container, monte a pasta do projeto e instale as
+dependências de teste na hora:
+
+```bash
+docker run --rm \
+    -v "$(pwd)":/app \
+    --env-file backend_events_tickets/.env \
+    bilheteria-api \
+    sh -c "pip install -r requirements-dev.txt && pytest backend_events_tickets/tests -v"
+```
+
+(No Windows PowerShell, troque `"$(pwd)"` por `${PWD}`.)
+
+---
+
+## Problemas comuns
+
+Erros que apareceram durante o desenvolvimento deste projeto e como
+resolvê-los, caso você bata neles ao configurar o ambiente:
+
+### `ModuleNotFoundError: No module named 'backend_events_tickets'`
+
+Falta um `__init__.py` em alguma pasta do pacote. Confirme que existem
+(vazios) em: `backend_events_tickets/__init__.py`,
+`backend_events_tickets/core/__init__.py`,
+`backend_events_tickets/routers/__init__.py` e
+`backend_events_tickets/tests/__init__.py`. Se rodou os testes com o
+comando `pytest` puro e mesmo assim deu esse erro, tente
+`python -m pytest backend_events_tickets/tests -v` de dentro de `backend/`
+— o `-m` garante que o diretório atual entra no `sys.path`.
+
+### `AttributeError: module 'bcrypt' has no attribute '__about__'`
+
+Incompatibilidade entre `passlib` e versões recentes do `bcrypt` (4.1+).
+Corrija fixando a versão:
+
+```bash
+pip install "bcrypt==4.0.1"
+```
+
+### `Import error: N validation errors for Settings ... Field required`
+
+O `Settings` (`core/config.py`) não encontrou o `.env`, ou não achou uma
+das variáveis obrigatórias (`SECRET_KEY`, `TMDB_API_KEY`, `QR_SECRET`).
+Confirme que o `.env` existe em `backend_events_tickets/.env` (não dentro
+de `core/`) e tem as três chaves preenchidas. Esse caminho é calculado
+automaticamente em `core/config.py` a partir de
+`Path(__file__).resolve().parent.parent` — se você mover `config.py` de
+lugar, esse cálculo precisa ser ajustado junto.
+
+### Front-end não consegue chamar a API (erro de CORS no navegador)
+
+O `main.py` já libera `allow_origins=["*"]` via `CORSMiddleware`. Se ainda
+assim der erro de CORS, confirme que o back-end está rodando e que a URL
+em `VITE_API_BASE_URL` (front-end) aponta para o endereço certo.
+
+### Reorganizei os arquivos e a aplicação parou de achar o `.env`/banco
+
+Tanto `core/config.py` quanto `core/database.py` calculam o caminho do
+`.env`/`tickets_app.db` subindo **dois** níveis a partir de si mesmos
+(`core/` → `backend_events_tickets/`). Se algum desses arquivos for movido
+para outro nível de pasta, o cálculo (`parent.parent`) precisa acompanhar.
 
 ---
 

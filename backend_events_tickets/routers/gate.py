@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from backend_events_tickets.database import Ticket, User, UserRole
-from backend_events_tickets.auth import get_db, require_role
+from backend_events_tickets.core.database import Ticket, User, UserRole
+from backend_events_tickets.core.auth import get_db, require_role
 from backend_events_tickets.services import verify_qr_payload
 
 router = APIRouter(prefix="/gate", tags=["Portaria"])

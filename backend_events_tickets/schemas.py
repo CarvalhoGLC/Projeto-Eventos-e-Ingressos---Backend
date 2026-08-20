@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from backend_events_tickets.database import UserRole
+from backend_events_tickets.core.database import UserRole
 
 
 class UserRegister(BaseModel):

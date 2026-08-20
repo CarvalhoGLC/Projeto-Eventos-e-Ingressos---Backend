@@ -4,8 +4,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend_events_tickets.database import Base, engine, User
-from backend_events_tickets.auth import get_db, pwd_context, create_access_token, get_current_user
+from backend_events_tickets.core.database import Base, engine, User
+from backend_events_tickets.core.auth import get_db, pwd_context, create_access_token, get_current_user
 from backend_events_tickets.schemas import UserRegister
 from backend_events_tickets.routers import events, bookings, external, gate
 
@@ -13,10 +13,6 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistema de Eventos e Ingressos")
 
-# Libera o front-end a chamar esta API. Como a autenticação usa Bearer token
-# (não cookies), não precisamos de allow_credentials — o que permite manter
-# allow_origins=["*"] com segurança. Em produção, troque por uma lista fixa
-# com a(s) URL(s) real(is) do seu front-end.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

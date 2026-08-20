@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta, timezone
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from backend_events_tickets.database import User, UserRole, SessionLocal
-from backend_events_tickets.config import get_settings
+from backend_events_tickets.core.database import User, UserRole, SessionLocal
+from backend_events_tickets.core.config import get_settings
 
 settings = get_settings()
 

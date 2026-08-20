@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+backend_events_tickets/tickets_app.db
+backend_events_tickets/tests/
+frontend/
+.git/
+.gitignore
+README.md

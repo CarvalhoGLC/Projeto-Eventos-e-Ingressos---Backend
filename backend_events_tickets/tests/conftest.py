@@ -14,8 +14,8 @@ os.environ.setdefault("TMDB_API_KEY", "test_tmdb_key")
 os.environ.setdefault("QR_SECRET", "test_qr_secret_apenas_para_testes")
 
 from backend_events_tickets.main import app  # noqa: E402
-from backend_events_tickets.database import Base  # noqa: E402
-from backend_events_tickets.auth import get_db  # noqa: E402
+from backend_events_tickets.core.database import Base  # noqa: E402
+from backend_events_tickets.core.auth import get_db  # noqa: E402
 
 # Banco de dados isolado para os testes — nunca toca no tickets_app.db real
 TEST_DB_PATH = Path(__file__).resolve().parent / "test_tickets_app.db"
