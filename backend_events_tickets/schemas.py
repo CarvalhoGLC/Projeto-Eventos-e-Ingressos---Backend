@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 from backend_events_tickets.core.database import UserRole
@@ -14,6 +16,14 @@ class EventCreate(BaseModel):
     location: str
     date: str
     price: float
+
+
+class EventUpdate(BaseModel):
+    """Todos os campos são opcionais — só atualiza o que for enviado."""
+    title: Optional[str] = None
+    location: Optional[str] = None
+    date: Optional[str] = None
+    price: Optional[float] = None
 
 
 class BookingRequest(BaseModel):
